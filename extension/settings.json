@@ -1,0 +1,17 @@
+{
+  "model": "v4.1-anime",
+  "playbackSpeed": 1.0,
+  "playbackVolume": 0.1,
+  "sentenceGapMs": 400,
+  "caption": "A young female narrator.\nHer voice is soft, warm, and alluring, with a hint of a sigh.\nShe is shy and easily embarrassed.\nShe speaks in a whisper.",
+  "num_steps": 12,
+  "speed": 1.0,
+  "cfg_scale_text": 3.0,
+  "cfg_scale_caption": 4.0,
+  "cfg_scale_speaker": 6.0,
+  "t_schedule_mode": "sway",
+  "sway_coeff": -1.0,
+  "watermark": false,
+  "highlightSentence": false,
+  "autoReadChat": false
+}

@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Irodori Web Reader",
+  "version": "1.0.0",
+  "description": "Extract web page text and read it with Irodori-TTS.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "offscreen",
+    "contextMenus",
+    "storage",
+    "windows",
+    "system.display"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "extract_text.js",
+        "content.js",
+        "chat_auto.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Irodori Web Reader"
+  }
+}

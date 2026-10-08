@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Irodori Web Reader</title>
+
+  <style>
+    body {
+      width: 320px;
+      min-height: 100%;
+      padding: 16px;
+      overflow-y: auto;
+      font-family: sans-serif;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin-top: 0;
+    }
+
+    button {
+      padding: 9px 12px;
+      cursor: pointer;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #f5f5f5;
+    }
+
+    button:hover {
+      background: #e8e8e8;
+    }
+
+    .main-button {
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .control-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .control-row button {
+      flex: 1;
+    }
+
+    .setting {
+      margin-top: 16px;
+    }
+
+    .setting select {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 4px;
+      padding: 4px 6px;
+    }
+
+    #modelNote {
+      display: block;
+      margin-top: 4px;
+    }
+
+    .setting-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    details.fold-settings {
+      margin-top: 16px;
+    }
+
+    details.fold-settings > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      list-style: none;
+      font-size: 13px;
+      user-select: none;
+    }
+
+    details.fold-settings > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.fold-settings > summary::after {
+      content: "▸";
+      color: #666;
+      font-size: 12px;
+    }
+
+    details.fold-settings[open] > summary::after {
+      content: "▾";
+    }
+
+    details.fold-settings > summary:hover {
+      color: #222;
+    }
+
+    details.fold-settings .generation-grid {
+      margin-top: 10px;
+    }
+
+    .voice-empty,
+    .voice-status {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #555;
+    }
+
+    .voice-list {
+      margin-top: 10px;
+    }
+
+    .voice-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .voice-row label {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .voice-row button {
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+
+    .voice-name-label {
+      display: block;
+      margin-top: 10px;
+      font-size: 12px;
+    }
+
+    .voice-name-label input {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 4px;
+      padding: 4px 6px;
+    }
+
+    #voiceFileInput {
+      display: block;
+      margin-top: 8px;
+      width: 100%;
+      font-size: 12px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+    }
+
+    .generation-grid {
+      display: grid;
+      grid-template-columns: 1fr 88px;
+      gap: 8px 8px;
+      align-items: center;
+    }
+
+    .generation-grid label {
+      font-size: 12px;
+    }
+
+    .generation-grid input[type="number"],
+    .generation-grid input[type="text"],
+    .generation-grid select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 4px 6px;
+    }
+
+    .generation-instruct {
+      grid-column: 1 / -1;
+    }
+
+    .generation-instruct input,
+    .generation-instruct select,
+    .generation-instruct textarea {
+      margin-top: 4px;
+    }
+
+    .generation-caption textarea {
+      min-height: 64px;
+      resize: vertical;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 4px 6px;
+    }
+
+    .generation-check {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .generation-check input {
+      margin-top: 2px;
+    }
+
+    .option-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-top: 12px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .option-check input {
+      margin-top: 2px;
+    }
+
+    .option-note {
+      display: block;
+      margin-top: 2px;
+      font-size: 11px;
+      color: #666;
+    }
+
+    #status {
+      margin-top: 12px;
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+
+    #progress {
+      margin-top: 8px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    #currentSentence {
+      margin-top: 8px;
+      padding: 8px;
+      max-height: 100px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 13px;
+      line-height: 1.5;
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+
+    #result {
+      margin-top: 12px;
+      max-height: 180px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12px;
+      background: #f5f5f5;
+      padding: 8px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Irodori Web Reader</h1>
+
+  <button
+    id="extractButton"
+    class="main-button">
+    本文を抽出
+  </button>
+
+  <button
+    id="readButton"
+    class="main-button">
+    このページを読み上げる
+  </button>
+
+  <button
+    id="readSelectionButton"
+    class="main-button">
+    選択範囲を読み上げる
+  </button>
+
+  <div id="progress">
+    0 / 0 文
+  </div>
+
+  <div id="currentSentence">
+    現在の文章はありません
+  </div>
+
+  <div class="control-row">
+
+    <button id="pauseButton">
+      ⏸ 一時停止
+    </button>
+
+    <button id="resumeButton">
+      ▶ 再開
+    </button>
+
+    <button id="stopButton">
+      ■ 停止
+    </button>
+
+  </div>
+
+  <div class="setting">
+
+    <div class="setting-label">
+      <span>速度</span>
+      <span id="speedValue">1.00x</span>
+    </div>
+
+    <input
+      id="speedRange"
+      type="range"
+      min="0.5"
+      max="2"
+      step="0.05"
+      value="1">
+
+  </div>
+
+  <div class="setting">
+
+    <div class="setting-label">
+      <span>音量</span>
+      <span id="volumeValue">100%</span>
+    </div>
+
+    <input
+      id="volumeRange"
+      type="range"
+      min="0"
+      max="100"
+      step="1"
+      value="100">
+
+  </div>
+
+  <div class="setting">
+
+    <div class="setting-label">
+      <span>次の文まで</span>
+      <span id="sentenceGapValue">500ms</span>
+    </div>
+
+    <input
+      id="sentenceGapRange"
+      type="range"
+      min="0"
+      max="2000"
+      step="50"
+      value="500">
+
+  </div>
+
+  <label class="option-check" for="highlightSentenceInput">
+    <input
+      id="highlightSentenceInput"
+      type="checkbox">
+    <span>読み上げ中の文をハイライト</span>
+  </label>
+
+  <label class="option-check" for="autoReadChatInput">
+    <input
+      id="autoReadChatInput"
+      type="checkbox">
+    <span>
+      チャットの解答を自動で読む
+      <span class="option-note">ChatGPT / Gemini のみ。解答が止まってから読みます。</span>
+    </span>
+  </label>
+
+  <details class="fold-settings" id="voiceSettings">
+    <summary>
+      <span id="voiceSummaryLabel">声</span>
+    </summary>
+
+    <div id="voiceEmpty" class="voice-empty">
+      参照なしでも読めます。クローンするときは wav / mp3 / ogg などを追加してください。
+    </div>
+
+    <div id="voiceList" class="voice-list"></div>
+
+    <label class="voice-name-label" for="voiceNameInput">
+      名前
+      <input
+        id="voiceNameInput"
+        type="text"
+        placeholder="省略時はファイル名">
+    </label>
+
+    <input
+      id="voiceFileInput"
+      type="file"
+      accept=".wav,.mp3,.ogg,.oga,.flac,audio/wav,audio/mpeg,audio/ogg,audio/flac">
+
+    <button
+      id="voiceUploadButton"
+      class="main-button"
+      type="button">
+      アップロード
+    </button>
+
+    <div id="voiceStatus" class="voice-status"></div>
+  </details>
+
+  <div class="setting">
+
+    <div class="setting-label">
+      <span>モデル</span>
+    </div>
+
+    <select id="modelSelect"></select>
+    <span id="modelNote" class="option-note"></span>
+
+  </div>
+
+  <details class="fold-settings generation-settings">
+    <summary>生成設定</summary>
+
+    <div class="generation-grid">
+      <label class="generation-instruct generation-caption" for="captionInput">
+        caption
+        <textarea
+          id="captionInput"
+          placeholder="空なら未指定。例: 明るく短いアニメ声で、自然に読んでください。"></textarea>
+      </label>
+
+      <label for="speedInput">speed</label>
+      <input
+        id="speedInput"
+        type="number"
+        min="0.25"
+        step="0.05"
+        value="1.0">
+
+      <label for="numStepsInput">num_steps</label>
+      <input
+        id="numStepsInput"
+        type="number"
+        min="1"
+        step="1"
+        value="40">
+
+      <label for="cfgScaleTextInput">cfg_scale_text</label>
+      <input
+        id="cfgScaleTextInput"
+        type="number"
+        min="0"
+        step="0.1"
+        value="3.0">
+
+      <label for="cfgScaleCaptionInput">cfg_scale_caption</label>
+      <input
+        id="cfgScaleCaptionInput"
+        type="number"
+        min="0"
+        step="0.1"
+        value="3.0">
+
+      <label for="cfgScaleSpeakerInput">cfg_scale_speaker</label>
+      <input
+        id="cfgScaleSpeakerInput"
+        type="number"
+        min="0"
+        step="0.1"
+        value="5.0">
+
+      <label class="generation-instruct" for="tScheduleModeInput">
+        t_schedule_mode
+        <select id="tScheduleModeInput">
+          <option value="linear">linear</option>
+          <option value="sway">sway</option>
+        </select>
+      </label>
+
+      <label for="swayCoeffInput">sway_coeff</label>
+      <input
+        id="swayCoeffInput"
+        type="number"
+        step="0.1"
+        value="-1.0">
+
+      <label class="generation-check" for="watermarkInput">
+        <input
+          id="watermarkInput"
+          type="checkbox">
+        <span>
+          透かし（SilentCipher）
+          <span class="option-note">オンにすると生成後に透かしを入れ、48 kHz を 44.1 kHz に変換します。</span>
+        </span>
+      </label>
+    </div>
+  </details>
+
+  <div id="status">
+    待機中
+  </div>
+
+  <pre id="result"></pre>
+
+  <script src="voices_ui.js"></script>
+  <script src="popup.js"></script>
+
+</body>
+</html>
