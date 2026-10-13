@@ -391,10 +391,10 @@ volumeRange.addEventListener("input", () => {
 
 // ================================================================================
 // splitSentences
-// 改行で1文。100文字以上の行だけ 。 、 . , で区切り、超える分は …以下略。
+// 改行で1文。50文字以上の行は先頭50文字内で 。/. を優先して区切り、無ければ 、等。
 // ================================================================================
 function splitSentences(text) {
-    const maxLength = 100;
+    const maxLength = 50;
     const omissionMark = "…以下略";
     const source = String(text || "")
         .replace(/\r\n/g, "\n")
@@ -410,49 +410,93 @@ function splitSentences(text) {
         return character >= "0" && character <= "9";
     }
 
-    function isPunctuationBreak(line, index) {
-        const character = line[index];
+    function findLastPrimaryBreakEnd(line, windowEnd) {
+        let lastEnd = -1;
 
-        if (character === "。" || character === "、") {
-            return true;
-        }
-
-        if (character === ".") {
-            return !isDigit(line[index + 1]);
-        }
-
-        if (character === ",") {
-            return !(isDigit(line[index - 1]) && isDigit(line[index + 1]));
-        }
-
-        return false;
-    }
-
-    function splitAtPunctuation(line) {
-        const parts = [];
-        let start = 0;
-
-        for (let index = 0; index < line.length; index += 1) {
-            if (!isPunctuationBreak(line, index)) {
-                continue;
+        for (let index = 0; index < windowEnd; index += 1) {
+            if (line[index] === "。") {
+                lastEnd = index;
             }
 
-            const piece = line.slice(start, index + 1).trim();
+            if (
+                line[index] === "." &&
+                index + 1 < windowEnd &&
+                line[index + 1] === " "
+            ) {
+                lastEnd = index + 1;
+            }
+        }
+
+        return lastEnd;
+    }
+
+    function findLastSecondaryBreakEnd(line, windowEnd) {
+        let lastEnd = -1;
+
+        for (let index = 0; index < windowEnd; index += 1) {
+            const character = line[index];
+
+            if (character === "、" || character === "！" || character === "？") {
+                lastEnd = index;
+            }
+
+            if (
+                character === "," &&
+                index + 1 < windowEnd &&
+                line[index + 1] === " "
+            ) {
+                const afterSpace = line[index + 2];
+
+                if (!(isDigit(line[index - 1]) && isDigit(afterSpace))) {
+                    lastEnd = index + 1;
+                }
+            }
+        }
+
+        return lastEnd;
+    }
+
+    function findLastBreakEndInWindow(line, limit) {
+        const windowEnd = Math.min(limit, line.length);
+        const primaryEnd = findLastPrimaryBreakEnd(line, windowEnd);
+
+        if (primaryEnd >= 0) {
+            return primaryEnd;
+        }
+
+        return findLastSecondaryBreakEnd(line, windowEnd);
+    }
+
+    function splitLongLine(line) {
+        const parts = [];
+        let rest = line;
+
+        while (rest.length >= maxLength) {
+            const lastBreak = findLastBreakEndInWindow(
+                rest,
+                maxLength
+            );
+
+            if (lastBreak < 0) {
+                parts.push(truncateOverflow(rest));
+                rest = "";
+                break;
+            }
+
+            const piece = rest.slice(0, lastBreak + 1).trimStart();
 
             if (piece) {
                 parts.push(piece);
             }
 
-            start = index + 1;
+            rest = rest.slice(lastBreak + 1).trimStart();
         }
 
-        const tail = line.slice(start).trim();
-
-        if (tail) {
-            parts.push(tail);
+        if (rest) {
+            parts.push(rest);
         }
 
-        return parts;
+        return parts.map(truncateOverflow);
     }
 
     function truncateOverflow(value) {
@@ -468,21 +512,23 @@ function splitSentences(text) {
             return [line];
         }
 
-        return splitAtPunctuation(line).map(truncateOverflow);
+        return splitLongLine(line);
     }
 
     function ensureTrailingPeriod(value) {
-        const trimmed = String(value || "").trim();
+        const text = String(value || "").trimStart();
 
-        if (!trimmed) {
-            return trimmed;
+        if (!text) {
+            return text;
         }
 
-        if (trimmed.endsWith("。") || trimmed.endsWith(".")) {
-            return trimmed;
+        const end = text.trimEnd();
+
+        if (end.endsWith("。") || end.endsWith(".")) {
+            return text;
         }
 
-        return trimmed + "。";
+        return text + "。";
     }
 
     return source

@@ -4,16 +4,18 @@
 // 読み上げ対象テキストを、TTS 向けの単位に分割する。
 //
 // 1. 改行で行に分ける。空行は捨て、行をまたいで結合しない
-// 2. 100文字未満の行は、中に 。 があってもそのまま1単位
-// 3. 100文字以上の行は 。 、 . , の直後で区切る（区切り文字は直前の単位に残す）
-// 4. . の直後が数字、, の前後が数字のときは切らない。！ ？ では切らない
-// 5. 区切ったあとも100文字を超える塊は、先頭100文字に "…以下略" を付け、続きは捨てる
-// 6. 各読み上げ単位の末尾に "。" が無ければ付与する（末尾が . のときは付与しない）
+// 2. 50文字未満の行は、句読点があってもそのまま1単位
+// 3. 50文字以上の行は、先頭50文字以内で区切る（区切り文字は直前の単位に残す）
+//    - 第一条件: 最後の 。 または ". "（ピリオド+半角スペース）
+//    - 第一条件が無いときだけ第二条件: 最後の 、 ！ ？ または ", "（カンマ+半角スペース）
+//    - ", " は 1,000 のような数字内のカンマでは使わない
+// 4. 区切ったあとも50文字を超える塊は、先頭50文字に "…以下略" を付け、続きは捨てる
+// 5. 各読み上げ単位の末尾に "。" が無ければ付与する（末尾が . のときは付与しない）
 // ================================================================================
 
 import { debugLog } from "./debug.js";
 
-export const MAX_SENTENCE_LENGTH = 100;
+export const MAX_SENTENCE_LENGTH = 50;
 const OMISSION_MARK = "…以下略";
 
 // ================================================================================
@@ -37,61 +39,113 @@ function isDigit(character) {
 }
 
 // ================================================================================
-// isPunctuationBreak
-// index 位置の文字の直後で、長い行を区切るか。
+// findLastPrimaryBreakEnd
+// 窓 [0, windowEnd) 内の第一区切りのうち、いちばん後ろの文字 index（含む）。
 // ================================================================================
-function isPunctuationBreak(text, index) {
-    const character = text[index];
+function findLastPrimaryBreakEnd(text, windowEnd) {
+    let lastEnd = -1;
 
-    if (character === "。" || character === "、") {
-        return true;
+    for (let index = 0; index < windowEnd; index += 1) {
+        if (text[index] === "。") {
+            lastEnd = index;
+        }
+
+        if (
+            text[index] === "." &&
+            index + 1 < windowEnd &&
+            text[index + 1] === " "
+        ) {
+            lastEnd = index + 1;
+        }
     }
 
-    if (character === ".") {
-        return !isDigit(text[index + 1]);
-    }
-
-    if (character === ",") {
-        return !(isDigit(text[index - 1]) && isDigit(text[index + 1]));
-    }
-
-    return false;
+    return lastEnd;
 }
 
 // ================================================================================
-// splitAtPunctuation
-// 。 、 . , の直後で分ける。区切り文字は直前の単位に残す。
+// findLastSecondaryBreakEnd
+// 窓内の第二区切りのうち、いちばん後ろの文字 index（含む）。
 // ================================================================================
-function splitAtPunctuation(line) {
-    const parts = [];
-    let start = 0;
+function findLastSecondaryBreakEnd(text, windowEnd) {
+    let lastEnd = -1;
 
-    for (let index = 0; index < line.length; index += 1) {
-        if (!isPunctuationBreak(line, index)) {
-            continue;
+    for (let index = 0; index < windowEnd; index += 1) {
+        const character = text[index];
+
+        if (character === "、" || character === "！" || character === "？") {
+            lastEnd = index;
         }
 
-        const piece = line.slice(start, index + 1).trim();
+        if (
+            character === "," &&
+            index + 1 < windowEnd &&
+            text[index + 1] === " "
+        ) {
+            const afterSpace = text[index + 2];
+
+            if (!(isDigit(text[index - 1]) && isDigit(afterSpace))) {
+                lastEnd = index + 1;
+            }
+        }
+    }
+
+    return lastEnd;
+}
+
+// ================================================================================
+// findLastBreakEndInWindow
+// 先頭 limit 文字の窓で切る位置（含む index）。無ければ -1。
+// ================================================================================
+function findLastBreakEndInWindow(text, limit) {
+    const windowEnd = Math.min(limit, text.length);
+    const primaryEnd = findLastPrimaryBreakEnd(text, windowEnd);
+
+    if (primaryEnd >= 0) {
+        return primaryEnd;
+    }
+
+    return findLastSecondaryBreakEnd(text, windowEnd);
+}
+
+// ================================================================================
+// splitLongLine
+// 50文字以上の行を、窓内の区切りで繰り返し分ける。
+// ================================================================================
+function splitLongLine(line) {
+    const parts = [];
+    let rest = line;
+
+    while (rest.length >= MAX_SENTENCE_LENGTH) {
+        const lastBreak = findLastBreakEndInWindow(
+            rest,
+            MAX_SENTENCE_LENGTH
+        );
+
+        if (lastBreak < 0) {
+            parts.push(truncateOverflow(rest));
+            rest = "";
+            break;
+        }
+
+        const piece = rest.slice(0, lastBreak + 1).trimStart();
 
         if (piece) {
             parts.push(piece);
         }
 
-        start = index + 1;
+        rest = rest.slice(lastBreak + 1).trimStart();
     }
 
-    const tail = line.slice(start).trim();
-
-    if (tail) {
-        parts.push(tail);
+    if (rest) {
+        parts.push(rest);
     }
 
-    return parts;
+    return parts.map(truncateOverflow);
 }
 
 // ================================================================================
 // truncateOverflow
-// 100文字を超える塊は、先頭100文字に "…以下略" を付けて打ち切る。
+// 50文字を超える塊は、先頭50文字に "…以下略" を付けて打ち切る。
 // ================================================================================
 function truncateOverflow(text) {
     if (text.length <= MAX_SENTENCE_LENGTH) {
@@ -103,14 +157,14 @@ function truncateOverflow(text) {
 
 // ================================================================================
 // splitLine
-// 1行を読み上げ単位へ分ける。100文字未満はそのまま。
+// 1行を読み上げ単位へ分ける。50文字未満はそのまま。
 // ================================================================================
 function splitLine(line) {
     if (line.length < MAX_SENTENCE_LENGTH) {
         return [line];
     }
 
-    return splitAtPunctuation(line).map(truncateOverflow);
+    return splitLongLine(line);
 }
 
 // ================================================================================
@@ -118,17 +172,19 @@ function splitLine(line) {
 // 末尾に 。 が無ければ付ける。. で終わる英文単位はそのまま。
 // ================================================================================
 function ensureTrailingPeriod(text) {
-    const trimmed = String(text || "").trim();
+    const value = String(text || "").trimStart();
 
-    if (!trimmed) {
-        return trimmed;
+    if (!value) {
+        return value;
     }
 
-    if (trimmed.endsWith("。") || trimmed.endsWith(".")) {
-        return trimmed;
+    const end = value.trimEnd();
+
+    if (end.endsWith("。") || end.endsWith(".")) {
+        return value;
     }
 
-    return trimmed + "。";
+    return value + "。";
 }
 
 // ================================================================================

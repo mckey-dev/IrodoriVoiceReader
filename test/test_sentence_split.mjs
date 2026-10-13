@@ -26,7 +26,9 @@ function assertEqual(actual, expected, message) {
     }
 }
 
-assertEqual(MAX_SENTENCE_LENGTH, 100, "max length");
+const OMISSION = "…以下略";
+
+assertEqual(MAX_SENTENCE_LENGTH, 50, "max length");
 
 assertEqual(splitSentences(""), [], "empty text");
 assertEqual(splitSentences("   "), [], "whitespace only");
@@ -64,7 +66,7 @@ assertEqual(
 assertEqual(
     splitSentences("今日は、いい天気です。"),
     ["今日は、いい天気です。"],
-    "japanese comma is not a break under 100 chars"
+    "japanese comma is not a break under max length"
 );
 
 assertEqual(
@@ -88,7 +90,7 @@ assertEqual(
 assertEqual(
     splitSentences("すごい！本当に？続きです。"),
     ["すごい！本当に？続きです。"],
-    "exclamation and question are not breaks"
+    "exclamation and question are not breaks on short lines"
 );
 
 assertEqual(
@@ -100,22 +102,22 @@ assertEqual(
 const long = "あ".repeat(250);
 assertEqual(
     splitSentences(long),
-    ["あ".repeat(100) + "…以下略。"],
-    "over 100 chars without punctuation is truncated with …以下略"
+    ["あ".repeat(MAX_SENTENCE_LENGTH) + OMISSION + "。"],
+    "over max chars without punctuation is truncated with …以下略"
 );
 
-const sample100 = "あ".repeat(100);
+const sampleAtMax = "あ".repeat(MAX_SENTENCE_LENGTH);
 assertEqual(
-    splitSentences(sample100),
-    [sample100 + "。"],
-    "exactly 100 chars stays whole and gets trailing 。"
+    splitSentences(sampleAtMax),
+    [sampleAtMax + "。"],
+    "exactly max chars stays whole and gets trailing 。"
 );
 
-const sample99 = "あ".repeat(99);
+const sampleUnderMax = "あ".repeat(MAX_SENTENCE_LENGTH - 1);
 assertEqual(
-    splitSentences(sample99),
-    [sample99 + "。"],
-    "99 chars stays one unit"
+    splitSentences(sampleUnderMax),
+    [sampleUnderMax + "。"],
+    "under max chars stays one unit"
 );
 
 const shortLines = "あ".repeat(20) + "\n" + "い".repeat(20) + "\n" + "う".repeat(20);
@@ -129,49 +131,87 @@ assertEqual(
     "short lines are not merged across newlines"
 );
 
-const splitOnPeriod = "あ".repeat(40) + "。" + "い".repeat(80);
+const splitOnPeriod = "あ".repeat(20) + "。" + "い".repeat(40);
 assertEqual(
     splitSentences(splitOnPeriod),
-    ["あ".repeat(40) + "。", "い".repeat(80) + "。"],
-    "a line of 100 or more splits after 。"
+    ["あ".repeat(20) + "。", "い".repeat(40) + "。"],
+    "a long line splits after 。"
 );
 
-const splitOnComma = "あ".repeat(60) + "、" + "い".repeat(50);
+const splitOnComma = "あ".repeat(30) + "、" + "い".repeat(30);
 assertEqual(
     splitSentences(splitOnComma),
-    ["あ".repeat(60) + "、。", "い".repeat(50) + "。"],
+    ["あ".repeat(30) + "、。", "い".repeat(30) + "。"],
     "a long line splits after 、"
 );
 
-const splitOnEnglishComma = "a".repeat(80) + ", " + "b".repeat(30);
+const splitOnEnglishComma = "a".repeat(30) + ", " + "b".repeat(25);
 assertEqual(
     splitSentences(splitOnEnglishComma),
-    ["a".repeat(80) + ",。", "b".repeat(30) + "。"],
-    "a long line splits after a comma that is not inside a number"
+    ["a".repeat(30) + ", 。", "b".repeat(25) + "。"],
+    "a long line splits after ,  (comma and space)"
 );
 
-const keepThousands = "あ".repeat(95) + "1,000です。";
+const keepThousands = "あ".repeat(45) + "1,000です。";
 assertEqual(
     splitSentences(keepThousands),
-    ["あ".repeat(95) + "1,000…以下略。"],
+    ["あ".repeat(45) + "1,000" + OMISSION + "。"],
     "a comma inside 1,000 is not a break"
 );
 
-const keepDecimal = "あ".repeat(96) + "3.14です。";
+const keepDecimal = "あ".repeat(46) + "3.14です。";
 assertEqual(
     splitSentences(keepDecimal),
-    ["あ".repeat(96) + "3.14…以下略。"],
+    ["あ".repeat(46) + "3.14" + OMISSION + "。"],
     "a decimal point is not a break"
 );
 
-const overflowAfterBreak = "あ".repeat(40) + "。" + "い".repeat(150);
+const overflowAfterBreak = "あ".repeat(20) + "。" + "い".repeat(150);
 assertEqual(
     splitSentences(overflowAfterBreak),
     [
-        "あ".repeat(40) + "。",
-        "い".repeat(100) + "…以下略。"
+        "あ".repeat(20) + "。",
+        "い".repeat(MAX_SENTENCE_LENGTH) + OMISSION + "。"
     ],
-    "a piece still over 100 chars is truncated and the rest is dropped"
+    "a piece still over max chars is truncated and the rest is dropped"
+);
+
+const splitOnExclamation = "あ".repeat(40) + "！" + "い".repeat(30);
+assertEqual(
+    splitSentences(splitOnExclamation),
+    ["あ".repeat(40) + "！。", "い".repeat(30) + "。"],
+    "a long line splits after ！ when no primary break in the window"
+);
+
+const primaryOverSecondary =
+    "あ".repeat(10) + "、" + "い".repeat(10) + "。" + "う".repeat(30);
+assertEqual(
+    splitSentences(primaryOverSecondary),
+    [
+        "あ".repeat(10) + "、" + "い".repeat(10) + "。",
+        "う".repeat(30) + "。"
+    ],
+    "primary 。 wins over secondary 、 in the same window"
+);
+
+const splitOnEnglishPeriodSpace = "a".repeat(40) + ". " + "b".repeat(20);
+assertEqual(
+    splitSentences(splitOnEnglishPeriodSpace),
+    ["a".repeat(40) + ". ", "b".repeat(20) + "。"],
+    "a long line splits after .  (period and space); space is kept"
+);
+
+const rezeroSynopsis =
+    "突如、コンビニ帰りに異世界へ召喚されたひきこもり学生の菜月昴。知識も技術も武力もコミュ能力もない、ないない尽くしの凡人が、チートボーナスを与えられることもなく放り込まれた異世界で必死こいて生き抜く。彼に与えられたたった一個の祝福は、『死んだら巻き戻ります』という痛みを伴う『死に戻り』のみ！　頼れるもののいない異世界で、いったい彼は何度死に、なにを掴み取るのか。　　※血も死体も出る予定ですが、そんな派手なことにはなりません。";
+const rezeroParts = splitSentences(rezeroSynopsis);
+
+assert(
+    rezeroParts[0].length > 10,
+    "re:zero synopsis first unit is not only the opening comma phrase"
+);
+assert(
+    !rezeroParts[0].startsWith("突如、。"),
+    "re:zero synopsis does not start with a tiny 突如、 unit"
 );
 
 const dialogue = [
@@ -189,7 +229,7 @@ assert(
 );
 assert(
     dialogueParts.some(item => item.includes("チューしちゃうもんね")),
-    "last phrase stays with its line when the line is under 100"
+    "last phrase stays with its line when the line is under max length"
 );
 assertEqual(dialogueParts.length, 5, "dialogue lines stay one unit each");
 
